@@ -1,9 +1,10 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
+#define relayPin 26
 
 // Configuración WiFi
-const char* ssid = "HUAWEI-2.4G-M6xZ";
-const char* password = "HT7KU2Xv";
+const char* ssid = "Galaxy S9+7c14";
+const char* password = "betitox007.,";
 
 // Configuración MQTT
 const char* mqtt_server = "broker.hivemq.com"; // Broker MQTT público
@@ -11,7 +12,7 @@ const int mqtt_port = 1883; // Puerto del broker
 const char* mqtt_topic = "titos/place/sonido"; // Tema MQTT
 
 // Pines del sensor KY-037
-const int soundSensorPin = 32; // Asegúrate de usar un pin analógico
+const int soundSensorPin = 35; // Asegúrate de usar un pin analógico
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -61,6 +62,7 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   pinMode(soundSensorPin, INPUT);
+  pinMode(relayPin, OUTPUT);
   
   setup_wifi();
   client.setServer(mqtt_server, mqtt_port);
@@ -75,6 +77,7 @@ void loop() {
 
   // Leer el valor del sensor KY-037
   int sensorValue = analogRead(soundSensorPin);
+  // int sensorData = digitalRead(soundSensorPin);
   Serial.print("Nivel de sonido: ");
   Serial.println(sensorValue);
 
@@ -87,6 +90,7 @@ void loop() {
   } else {
     Serial.println("Error al enviar los datos");
   }
+    digitalWrite(relayPin, LOW);
 
-  delay(5000); // Esperar 5 segundos antes de la siguiente lectura
+  delay(3000); // Esperar 5 segundos antes de la siguiente lectura
 }
