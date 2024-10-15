@@ -27,6 +27,60 @@ public:
   }
 };
 
+class MQTTHandler {
+private:
+    PubSubClient client;
+    const char* SERVER;
+    const unsigned int PORT;
+    const char* topic;
+
+public:
+    MQTTHandler(Client& espClient, const char* SERVER, unsigned int PORT, const char* topic)
+        : client(espClient), SERVER(SERVER), PORT(PORT), topic(topic) {}
+
+    void connect() {
+        client.setServer(SERVER, PORT);
+        reconnect();
+    }
+
+    void reconnect() {
+        while (!client.connected()) {
+            String clientId = "ESP32Client-" + String(random(0xffff), HEX);
+            if (client.connect(clientId.c_str())) {
+                Serial.println("Connected to MQTT broker");
+                client.subscribe(topic); // Suscribirse al tópico
+            } else {
+                Serial.print("Error MQTT connection, rc=");
+                Serial.println(client.state());
+                delay(5000);
+            }
+        }
+    }
+
+    void publish(const String& message) {
+        if (client.publish(topic, message.c_str())) {
+            Serial.println("Data sent successfully");
+        } else {
+            Serial.println("Error sending data");
+        }
+    }
+
+    void setCallback(std::function<void(char*, byte*, unsigned int)> callback) {
+        client.setCallback(callback);
+    }
+
+    void loop() {
+        if (!client.connected()) {
+            reconnect();
+        }
+        client.loop();
+    }
+
+    PubSubClient& getClient() {
+        return client;
+    }
+};
+
 class Observer {
 public:
   virtual void update(const String& message) = 0;
@@ -34,54 +88,22 @@ public:
 
 class MQTTSensorPublisher : public Observer {
 private:
-  PubSubClient client;
-  const char* SERVER;
-  const unsigned int PORT;
-  const char* publishTopic;
+  MQTTHandler& mqttHandler;
 
 public:
-  MQTTSensorPublisher(Client& espClient, const char* SERVER, unsigned int PORT, const char* publishTopic)
-      : client(espClient), SERVER(SERVER), PORT(PORT), publishTopic(publishTopic) {}
+  MQTTSensorPublisher(MQTTHandler& mqttHandler)
+      : mqttHandler(mqttHandler) {}
+
+  void update(const String& message) override {
+    mqttHandler.publish(message);
+  }
 
   void connect() {
-    client.setServer(SERVER, PORT);
-    reconnect();
-  }
-
-  void reconnect() {
-    while (!client.connected()) {
-      String clientId = "ESP32Client-" + String(random(0xffff), HEX);
-      if (client.connect(clientId.c_str())) {
-        Serial.println("Connected to MQTT broker");
-      } else {
-        Serial.print("Error MQTT connection, rc=");
-        Serial.println(client.state());
-        delay(5000);
-      }
-    }
-  }
-
-  void publish(const String& message) {
-    if (client.publish(publishTopic, message.c_str())) {
-      Serial.println("Data sent successfully");
-    } else {
-      Serial.println("Error sending data");
-    }
+    mqttHandler.connect();
   }
 
   void loop() {
-    if (!client.connected()) {
-      reconnect();
-    }
-    client.loop();
-  }
-
-  PubSubClient& getClient() {
-    return client;
-  }
-
-  void update(const String& message) override {
-    publish(message);
+    mqttHandler.loop();
   }
 };
 
@@ -142,15 +164,14 @@ public:
 
 class MQTTActuatorController : public Subject {
 private:
-  PubSubClient& client;
-  const char* subscribeTopic; // Tópico al que se suscribirá para recibir los mensajes
+  MQTTHandler& mqttHandler;
 
 public:
-  MQTTActuatorController(PubSubClient& client, const char* subscribeTopic) 
-      : client(client), subscribeTopic(subscribeTopic) {}
+  MQTTActuatorController(MQTTHandler& mqttHandler) 
+      : mqttHandler(mqttHandler) {}
 
   void setCallback() {
-    client.setCallback([this](char* topic, byte* payload, unsigned int length) {
+    mqttHandler.setCallback([this](char* topic, byte* payload, unsigned int length) {
       String message;
       for (int i = 0; i < length; i++) {
         message += (char)payload[i];
@@ -162,26 +183,20 @@ public:
   }
 
   void connect() {
-    if (!client.connected()) {
-      String clientId = "ESP32Actuator-" + String(random(0xffff), HEX);
-      if (client.connect(clientId.c_str())) {
-        Serial.println("Connected to MQTT broker for Actuator");
-        client.subscribe(subscribeTopic);
-      } else {
-        Serial.println("Failed to connect to MQTT broker");
-      }
-    }
+    mqttHandler.connect();
   }
 
   void loop() {
-    client.loop();
+    mqttHandler.loop();
   }
 };
 
 WiFiClient espClient;
 WiFiConnection wifi("HUAWEI-2.4G-M6xZ", "HT7KU2Xv");
-MQTTSensorPublisher mqttSensorPublisher(espClient, "broker.hivemq.com", 1883, "titos/place/sound");
-MQTTActuatorController mqttActuatorController(mqttSensorPublisher.getClient(), "titos/place/actuator");
+MQTTHandler mqttSensorHandler(espClient, "broker.hivemq.com", 1883, "titos/place/sound");
+MQTTHandler mqttActuatorHandler(espClient, "broker.hivemq.com", 1883, "titos/place/actuator");
+MQTTSensorPublisher mqttSensorPublisher(mqttSensorHandler);
+MQTTActuatorController mqttActuatorController(mqttActuatorHandler);
 RelayObserver relayObserver(RELAY_PIN);
 SoundSensor soundSensor(SOUND_SENSOR_PIN);
 
