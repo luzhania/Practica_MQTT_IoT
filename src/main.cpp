@@ -29,18 +29,18 @@ public:
 
 class Observer {
 public:
-    virtual void update(int data) = 0;
+    virtual void update(unsigned int data) = 0;
 };
 
 class MQTTClient : public Observer {
 private:
     PubSubClient client;
     const char* SERVER;
-    const int PORT;
+    const unsigned int PORT;
     const char* TOPIC;
 
 public:
-    MQTTClient(Client& espClient, const char* SERVER, int PORT, const char* TOPIC) 
+    MQTTClient(Client& espClient, const char* SERVER, unsigned int PORT, const char* TOPIC) 
         : client(espClient), SERVER(SERVER), PORT(PORT), TOPIC(TOPIC) {}
 
     void connect() {
@@ -69,7 +69,7 @@ public:
         }
     }
 
-    void update(int data) override {
+    void update(unsigned int data) override {
         publish(String(data));
     }
 
@@ -80,6 +80,24 @@ public:
         client.loop();
     }
 };
+
+// class RelayControl : public Observer {
+// private:
+//     int relayPin;
+
+// public:
+//     RelayControl(int relayPin) : relayPin(relayPin) {
+//         pinMode(relayPin, OUTPUT);
+//     }
+
+//     void update(unsigned int data) override {
+//         if (data > 1000) {
+//             digitalWrite(relayPin, HIGH);
+//         } else {
+//             digitalWrite(relayPin, LOW);
+//         }
+//     }
+// };
 
 class Subject {
 private:
@@ -94,39 +112,33 @@ public:
         observers.erase(remove(observers.begin(), observers.end(), observer), observers.end());
     }
 
-    void notifyObservers(int data) {
+    void notifyObservers(unsigned int data) {
         for (Observer* observer : observers) {
             observer->update(data);
         }
     }
 };
 
-
 class SoundSensor : public Subject {
 private:
-    int pin;
+    unsigned int pin;
 
 public:
-    SoundSensor(int pin) : pin(pin) {}
-
-    int readValue() {
-        return analogRead(pin);
-    }
+    SoundSensor(unsigned int pin) : pin(pin) {}
 
     void checkSoundLevel() {
-        int sensorValue = readValue();
+        unsigned int sensorValue = analogRead(pin);
         Serial.print("Sound level: ");
         Serial.println(sensorValue);
         notifyObservers(sensorValue);
     }
 };
 
-
-
 WiFiClient espClient;
 WiFiConnection wifi("HUAWEI-2.4G-M6xZ", "HT7KU2Xv");
 MQTTClient mqtt(espClient, "broker.hivemq.com", 1883, "titos/place/sound");
 SoundSensor soundSensor(SOUND_SENSOR_PIN);
+// RelayControl relay(RELAY_PIN);
 
 void setup() {
     Serial.begin(115200);
