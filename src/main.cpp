@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <vector>
+#include "Utilities.h"
 
 #define RELAY_PIN 26
 #define SOUND_SENSOR_PIN 35
@@ -142,39 +143,54 @@ public:
 class MQTTActuatorController : public Subject {
 private:
   PubSubClient& client;
+  const char* subscribeTopic; // Tópico al que se suscribirá para recibir los mensajes
 
 public:
-  MQTTActuatorController(PubSubClient& client) : client(client) {}
-
-  void callback(char* topic, byte* payload, unsigned int length) {
-    String message;
-    for (int i = 0; i < length; i++) {
-      message += (char)payload[i];
-    }
-    Serial.print("Message received: ");
-    Serial.println(message);
-
-    notifyObservers(message);
-  }
+  MQTTActuatorController(PubSubClient& client, const char* subscribeTopic) 
+      : client(client), subscribeTopic(subscribeTopic) {}
 
   void setCallback() {
     client.setCallback([this](char* topic, byte* payload, unsigned int length) {
-      callback(topic, payload, length);
+      String message;
+      for (int i = 0; i < length; i++) {
+        message += (char)payload[i];
+      }
+      Serial.print("Message received: ");
+      Serial.println(message);
+      notifyObservers(message);
     });
+  }
+
+  void connect() {
+    if (!client.connected()) {
+      String clientId = "ESP32Actuator-" + String(random(0xffff), HEX);
+      if (client.connect(clientId.c_str())) {
+        Serial.println("Connected to MQTT broker for Actuator");
+        client.subscribe(subscribeTopic);
+      } else {
+        Serial.println("Failed to connect to MQTT broker");
+      }
+    }
+  }
+
+  void loop() {
+    client.loop();
   }
 };
 
 WiFiClient espClient;
 WiFiConnection wifi("HUAWEI-2.4G-M6xZ", "HT7KU2Xv");
 MQTTSensorPublisher mqttSensorPublisher(espClient, "broker.hivemq.com", 1883, "titos/place/sound");
-MQTTActuatorController mqttActuatorController(mqttSensorPublisher.getClient());
+MQTTActuatorController mqttActuatorController(mqttSensorPublisher.getClient(), "titos/place/actuator");
 RelayObserver relayObserver(RELAY_PIN);
 SoundSensor soundSensor(SOUND_SENSOR_PIN);
 
 void setup() {
   Serial.begin(115200);
   wifi.connect();
+  
   mqttSensorPublisher.connect();
+  mqttActuatorController.connect();
 
   mqttActuatorController.attach(&relayObserver);
   mqttActuatorController.setCallback();
@@ -184,6 +200,8 @@ void setup() {
 
 void loop() {
   mqttSensorPublisher.loop();
-  soundSensor.checkSoundLevel();
-  delay(1000);
+  mqttActuatorController.loop();
+
+  Utilities::nonBlockingDelay(500, []()
+                              { soundSensor.checkSoundLevel(); });
 }
