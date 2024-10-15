@@ -3,7 +3,7 @@
 #include <vector>
 #include "Utilities.h"
 
-#define RELAY_PIN 26
+#define RELAY_PIN 32
 #define SOUND_SENSOR_PIN 35
 
 using namespace std;
@@ -57,7 +57,7 @@ public:
         }
     }
 
-    void publish(const String& message) {
+    void publish(const String& message, const char* topic) {
         if (client.publish(topic, message.c_str())) {
             Serial.println("Data sent successfully");
         } else {
@@ -95,7 +95,7 @@ public:
       : mqttHandler(mqttHandler) {}
 
   void update(const String& message) override {
-    mqttHandler.publish(message);
+    mqttHandler.publish(message, "titos/place/sound");
   }
 
   void connect() {
@@ -192,10 +192,9 @@ public:
 };
 
 WiFiClient espClient;
-WiFiConnection wifi("HUAWEI-2.4G-M6xZ", "HT7KU2Xv");
-MQTTHandler mqttSensorHandler(espClient, "broker.hivemq.com", 1883, "titos/place/sound");
+WiFiConnection wifi("Galaxy S9+7c14", "betitox007.,");
 MQTTHandler mqttActuatorHandler(espClient, "broker.hivemq.com", 1883, "titos/place/actuator");
-MQTTSensorPublisher mqttSensorPublisher(mqttSensorHandler);
+MQTTSensorPublisher mqttSensorPublisher(mqttActuatorHandler);
 MQTTActuatorController mqttActuatorController(mqttActuatorHandler);
 RelayObserver relayObserver(RELAY_PIN);
 SoundSensor soundSensor(SOUND_SENSOR_PIN);
@@ -204,7 +203,6 @@ void setup() {
   Serial.begin(115200);
   wifi.connect();
   
-  mqttSensorPublisher.connect();
   mqttActuatorController.connect();
 
   mqttActuatorController.attach(&relayObserver);
