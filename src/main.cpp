@@ -1,96 +1,144 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
-#define relayPin 26
+#include <vector>
+#define RELAY_PIN 26
+#define SOUND_SENSOR_PIN 35
 
-// Configuración WiFi
-const char* ssid = "Galaxy S9+7c14";
-const char* password = "betitox007.,";
+using namespace std;
+class WiFiConnection
+{
+private:
+  const char *SSID;
+  const char *PASSWORD;
 
-// Configuración MQTT
-const char* mqtt_server = "broker.hivemq.com"; // Broker MQTT público
-const int mqtt_port = 1883; // Puerto del broker
-const char* mqtt_topic = "titos/place/sonido"; // Tema MQTT
+public:
+  WiFiConnection(const char *SSID, const char *PASSWORD)
+      : SSID(SSID), PASSWORD(PASSWORD) {}
 
-// Pines del sensor KY-037
-const int soundSensorPin = 35; // Asegúrate de usar un pin analógico
+  void connect()
+  {
+    WiFi.begin(SSID, PASSWORD);
+    while (WiFi.status() != WL_CONNECTED)
+    {
+      delay(1000);
+      Serial.println("Connecting to WiFi...");
+    }
+    Serial.println("Connected to WiFi");
+  }
+};
+
+class Observer {
+public:
+    virtual void update(int data) = 0;
+};
+
+class MQTTClient : public Observer {
+private:
+    PubSubClient client;
+    const char* SERVER;
+    const int PORT;
+    const char* TOPIC;
+
+public:
+    MQTTClient(Client& espClient, const char* SERVER, int PORT, const char* TOPIC) 
+        : client(espClient), SERVER(SERVER), PORT(PORT), TOPIC(TOPIC) {}
+
+    void connect() {
+        client.setServer(SERVER, PORT);
+        reconnect();
+    }
+
+    void reconnect() {
+        while (!client.connected()) {
+            String clientId = "ESP32Client-" + String(random(0xffff), HEX);
+            if (client.connect(clientId.c_str())) {
+                Serial.println("Connected to MQTT broker");
+            } else {
+                Serial.print("Error MQTT connection, rc=");
+                Serial.println(client.state());
+                delay(5000);
+            }
+        }
+    }
+
+    void publish(const String& message) {
+        if (client.publish(TOPIC, message.c_str())) {
+            Serial.println("Data sent successfully");
+        } else {
+            Serial.println("Error sending data");
+        }
+    }
+
+    void update(int data) override {
+        publish(String(data));
+    }
+
+    void loop() {
+        if (!client.connected()) {
+            reconnect();
+        }
+        client.loop();
+    }
+};
+
+class Subject {
+private:
+    vector<Observer*> observers;
+
+public:
+    void attach(Observer* observer) {
+        observers.push_back(observer);
+    }
+
+    void detach(Observer* observer) {
+        observers.erase(remove(observers.begin(), observers.end(), observer), observers.end());
+    }
+
+    void notifyObservers(int data) {
+        for (Observer* observer : observers) {
+            observer->update(data);
+        }
+    }
+};
+
+
+class SoundSensor : public Subject {
+private:
+    int pin;
+
+public:
+    SoundSensor(int pin) : pin(pin) {}
+
+    int readValue() {
+        return analogRead(pin);
+    }
+
+    void checkSoundLevel() {
+        int sensorValue = readValue();
+        Serial.print("Sound level: ");
+        Serial.println(sensorValue);
+        notifyObservers(sensorValue);
+    }
+};
+
+
 
 WiFiClient espClient;
-PubSubClient client(espClient);
-
-// Función para conectarse al WiFi
-void setup_wifi() {
-  delay(10);
-  Serial.println();
-  Serial.print("Conectando a ");
-  Serial.println(ssid);
-  
-  WiFi.begin(ssid, password);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.println("Conectado a WiFi");
-  Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());
-}
-
-// Función para reconectar MQTT en caso de desconexión
-void reconnect() {
-  // Loop until we're reconnected
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Create a client ID based on the ESP32's unique chip ID
-    String clientId = "ESP32Client-";
-    clientId += String(random(0xffff), HEX);
-
-    // Attempt to connect
-    if (client.connect(clientId.c_str())) {
-      Serial.println("connected");
-      // Subscribe to the topic to receive LED control messages
-      client.subscribe("titos/place/test");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-    }
-  }
-}
+WiFiConnection wifi("HUAWEI-2.4G-M6xZ", "HT7KU2Xv");
+MQTTClient mqtt(espClient, "broker.hivemq.com", 1883, "titos/place/sound");
+SoundSensor soundSensor(SOUND_SENSOR_PIN);
 
 void setup() {
-  Serial.begin(115200);
-  pinMode(soundSensorPin, INPUT);
-  pinMode(relayPin, OUTPUT);
-  
-  setup_wifi();
-  client.setServer(mqtt_server, mqtt_port);
-  client.setKeepAlive(180);
+    Serial.begin(115200);
+    wifi.connect();
+    mqtt.connect();
+    
+    soundSensor.attach(&mqtt);  // MQTT observará los cambios del sensor de sonido
+    // soundSensor.attach(&relay); // El relé observará los cambios del sensor de sonido
 }
 
 void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
-
-  // Leer el valor del sensor KY-037
-  int sensorValue = analogRead(soundSensorPin);
-  // int sensorData = digitalRead(soundSensorPin);
-  Serial.print("Nivel de sonido: ");
-  Serial.println(sensorValue);
-
-  // Convertir valor a String
-  String payload = String(sensorValue);
-
-  // Publicar los datos del sensor en el tema MQTT
-  if (client.publish(mqtt_topic, payload.c_str())) {
-    Serial.println("Datos enviados exitosamente");
-  } else {
-    Serial.println("Error al enviar los datos");
-  }
-    digitalWrite(relayPin, LOW);
-
-  delay(3000); // Esperar 5 segundos antes de la siguiente lectura
+    mqtt.loop();
+    soundSensor.checkSoundLevel();
+    delay(1000);
 }
