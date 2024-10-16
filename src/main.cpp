@@ -32,11 +32,11 @@ private:
     PubSubClient client;
     const char* SERVER;
     const unsigned int PORT;
-    const char* topic;
+    const char* TOPIC;
 
 public:
-    MQTTHandler(Client& espClient, const char* SERVER, unsigned int PORT, const char* topic)
-        : client(espClient), SERVER(SERVER), PORT(PORT), topic(topic) {}
+    MQTTHandler(Client& espClient, const char* SERVER, unsigned int PORT, const char* TOPIC)
+        : client(espClient), SERVER(SERVER), PORT(PORT), TOPIC(TOPIC) {}
 
     void connect() {
         client.setServer(SERVER, PORT);
@@ -48,7 +48,7 @@ public:
             String clientId = "ESP32Client-" + String(random(0xffff), HEX);
             if (client.connect(clientId.c_str())) {
                 Serial.println("Connected to MQTT broker");
-                client.subscribe(topic); // Suscribirse al tópico
+                client.subscribe(TOPIC);
             } else {
                 Serial.print("Error MQTT connection, rc=");
                 Serial.println(client.state());
@@ -118,12 +118,18 @@ public:
 
   void update(const String& message) override {
     if (message == "ON") {
-      digitalWrite(relayPin, HIGH);
-      Serial.println("Relay ON");
+      turnOn();
     } else if (message == "OFF") {
-      digitalWrite(relayPin, LOW);
-      Serial.println("Relay OFF");
+      turnOff();
     }
+  }
+
+  void turnOn() {
+    digitalWrite(relayPin, HIGH);
+  }
+
+  void turnOff() {
+    digitalWrite(relayPin, LOW);
   }
 };
 
@@ -193,6 +199,7 @@ public:
 
 WiFiClient espClient;
 WiFiConnection wifi("Galaxy S9+7c14", "betitox007.,");
+// "Galaxy S9+7c14", "betitox007.,"
 MQTTHandler mqttActuatorHandler(espClient, "broker.hivemq.com", 1883, "titos/place/actuator");
 MQTTSensorPublisher mqttSensorPublisher(mqttActuatorHandler);
 MQTTActuatorController mqttActuatorController(mqttActuatorHandler);
