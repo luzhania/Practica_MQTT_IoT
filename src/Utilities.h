@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <functional>
 #include <iostream>
+#pragma once
 
 using namespace std;
 
