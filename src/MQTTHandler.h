@@ -4,14 +4,15 @@
 
 class MQTTHandler {
 private:
+    WiFiClient wifiClient;
     PubSubClient client;
     const char* SERVER;
     const unsigned int PORT;
     const char* TOPIC;
 
 public:
-    MQTTHandler(Client& espClient, const char* SERVER, unsigned int PORT, const char* TOPIC)
-        : client(espClient), SERVER(SERVER), PORT(PORT), TOPIC(TOPIC) {}
+    MQTTHandler(const char* SERVER, unsigned int PORT, const char* TOPIC)
+        : SERVER(SERVER), PORT(PORT), TOPIC(TOPIC), client(wifiClient) {}
 
     void connect() {
         client.setServer(SERVER, PORT);

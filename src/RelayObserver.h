@@ -8,6 +8,7 @@ private:
 public:
   RelayObserver(int relayPin) : relayPin(relayPin) {
     pinMode(relayPin, OUTPUT);
+    turnOn();
   }
 
   void update(const String& message) override {
