@@ -12,10 +12,10 @@ using namespace std;
 
 WiFiConnection wifi("HUAWEI-2.4G-M6xZ", "HT7KU2Xv");
 // "Galaxy S9+7c14", "betitox007.,"
-MQTTHandler mqttHandler("broker.hivemq.com", 1883, "titos/place/actuator");
+MQTTHandler mqttHandler("broker.hivemq.com", 1883);
 
-MQTTActuatorController mqttActuatorController(mqttHandler);
-MQTTSensorPublisher mqttSensorPublisher(mqttHandler);
+MQTTActuatorController mqttActuatorController(mqttHandler, "titos/place/actuator");
+MQTTSensorPublisher mqttSensorPublisher(mqttHandler, "titos/place/sound");
 
 RelayObserver relayObserver(RELAY_PIN);
 SoundSensor soundSensor(SOUND_SENSOR_PIN);
@@ -24,8 +24,9 @@ void setup() {
   Serial.begin(115200);
   wifi.connect();
   
-  mqttActuatorController.connect();
-
+  mqttHandler.connect();
+  
+  mqttActuatorController.subscribe();
   mqttActuatorController.attach(&relayObserver);
   mqttActuatorController.setCallback();
   

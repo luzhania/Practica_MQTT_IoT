@@ -8,11 +8,11 @@ private:
     PubSubClient client;
     const char* SERVER;
     const unsigned int PORT;
-    const char* TOPIC;
+    const char* SUBSCRIBE_TOPIC;
 
 public:
-    MQTTHandler(const char* SERVER, unsigned int PORT, const char* TOPIC)
-        : SERVER(SERVER), PORT(PORT), TOPIC(TOPIC), client(wifiClient) {}
+    MQTTHandler(const char* SERVER, unsigned int PORT)
+        : SERVER(SERVER), PORT(PORT), client(wifiClient) {}
 
     void connect() {
         client.setServer(SERVER, PORT);
@@ -24,7 +24,9 @@ public:
             String clientId = "ESP32Client-" + String(random(0xffff), HEX);
             if (client.connect(clientId.c_str())) {
                 Serial.println("Connected to MQTT broker");
-                client.subscribe(TOPIC);
+                if(SUBSCRIBE_TOPIC) {
+                    subscribe(SUBSCRIBE_TOPIC);
+                }
             } else {
                 Serial.print("Error MQTT connection, rc=");
                 Serial.println(client.state());
@@ -45,14 +47,16 @@ public:
         client.setCallback(callback);
     }
 
+    void subscribe(const char* topic) {
+        client.subscribe(topic);
+        Serial.println("Subscribed to topic: " + String(topic));
+        SUBSCRIBE_TOPIC = topic;
+    }
+
     void loop() {
         if (!client.connected()) {
             reconnect();
         }
         client.loop();
-    }
-
-    PubSubClient& getClient() {
-        return client;
     }
 };

@@ -3,10 +3,10 @@
 
 class RelayObserver : public Observer {
 private:
-  int relayPin;
+  unsigned int relayPin;
 
 public:
-  RelayObserver(int relayPin) : relayPin(relayPin) {
+  RelayObserver(unsigned int relayPin) : relayPin(relayPin) {
     pinMode(relayPin, OUTPUT);
     turnOn();
   }

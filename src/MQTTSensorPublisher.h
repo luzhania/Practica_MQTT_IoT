@@ -5,13 +5,14 @@
 class MQTTSensorPublisher : public Observer {
 private:
   MQTTHandler& mqttHandler;
+  const char* TOPIC;
 
 public:
-  MQTTSensorPublisher(MQTTHandler& mqttHandler)
-      : mqttHandler(mqttHandler) {}
+  MQTTSensorPublisher(MQTTHandler& mqttHandler, const char* TOPIC)
+      : mqttHandler(mqttHandler), TOPIC(TOPIC) {}
 
   void update(const String& message) override {
-    mqttHandler.publish(message, "titos/place/sound");
+    mqttHandler.publish(message, TOPIC);
   }
 
   void connect() {

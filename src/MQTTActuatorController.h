@@ -5,10 +5,11 @@
 class MQTTActuatorController : public Subject {
 private:
   MQTTHandler& mqttHandler;
+  const char* TOPIC;
 
 public:
-  MQTTActuatorController(MQTTHandler& mqttHandler) 
-      : mqttHandler(mqttHandler) {}
+  MQTTActuatorController(MQTTHandler& mqttHandler, const char* topic) 
+      : mqttHandler(mqttHandler), TOPIC(topic) {}
 
   void setCallback() {
     mqttHandler.setCallback([this](char* topic, byte* payload, unsigned int length) {
@@ -22,6 +23,10 @@ public:
     });
   }
 
+  void subscribe() {
+    mqttHandler.subscribe(TOPIC);
+  }
+  
   void connect() {
     mqttHandler.connect();
   }
